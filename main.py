@@ -8,8 +8,12 @@ def run_track_object():
     cap = cv2.VideoCapture("video/traffic_1080.mp4")
     # cap = cv2.VideoCapture("video/traffic_congested_1080.mp4")
 
+    # Print the FPS of the video
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"FPS of the video: {fps}")
+
     # Load a pretrained YOLO model (recommended for training)
-    model = YOLO("yolo11l.pt")
+    model = YOLO("yolo11x.pt")
 
     area1 = [(0, 600), (0, 1080), (850, 1080), (850, 600)]  # left side
     area2 = [(1920, 600), (1920, 1080), (920, 1080), (920, 600)]  # right side
