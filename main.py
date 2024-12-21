@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import torch
+import time
 
 
 def run_track_object():
@@ -13,7 +14,7 @@ def run_track_object():
     print(f"FPS of the video: {fps}")
 
     # Load a pretrained YOLO model (recommended for training)
-    model = YOLO("yolo11x.pt")
+    model = YOLO("yolo11l.pt")
 
     area1 = [(0, 600), (0, 1080), (850, 1080), (850, 600)]  # left side
     area2 = [(1920, 600), (1920, 1080), (920, 1080), (920, 600)]  # right side
@@ -24,6 +25,8 @@ def run_track_object():
         success, frame = cap.read()
 
         if success:
+            start_time = time.time()
+
             for area in [area1, area2]:
                 cv2.polylines(
                     frame, [np.array(area, np.int32)], True, (0, 0, 255), 5
@@ -31,11 +34,27 @@ def run_track_object():
 
             # Run YOLO11 tracking on the frame, persisting tracks between frames
             results = model.track(
-                frame, persist=True, conf=0.25, iou=0.7, device="mps"
+                frame, persist=True, conf=0.25, iou=0.7, device=device
             )
 
             # Visualize the results on the frame
             annotated_frame = results[0].plot()
+
+            # Calculate the live FPS
+            end_time = time.time()
+            live_fps = 1 / (end_time - start_time)
+
+            # Overlay the live FPS on the frame
+            cv2.putText(
+                annotated_frame,
+                f"FPS: {round(live_fps)}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 255),
+                2,
+                cv2.LINE_AA,
+            )
 
             # Display the annotated frame
             cv2.imshow("YOLO11 Tracking", annotated_frame)
@@ -59,4 +78,5 @@ if __name__ == "__main__":
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
+
     run_track_object()
