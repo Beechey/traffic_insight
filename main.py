@@ -1,74 +1,37 @@
-import cv2
+import argparse
 import numpy as np
-from ultralytics import YOLO
+import supervision as sp
 import torch
-import time
+from ultralytics import YOLO
 
 
-def run_track_object():
-    cap = cv2.VideoCapture("video/traffic_1080.mp4")
-    # cap = cv2.VideoCapture("video/traffic_congested_1080.mp4")
+class VideoProcessor:
+    def __init__(
+        self,
+        weights_path: str,
+        src_video_path: str,
+        output_video_path: str = None,
+        confidence_threshold: float = 0.3,
+        iou_threshold: float = 0.7,
+        device: str = "cpu",
+    ) -> None:
+        self.source_video = src_video_path
+        self.output_video = output_video_path
+        self.confidence_threshold = confidence_threshold
+        self.iou_threshold = iou_threshold
+        self.device = torch.device(device)
+        self.model = YOLO(weights_path, device=self.device)
 
-    # Print the FPS of the video
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    print(f"FPS of the video: {fps}")
+    def process_video(self) -> None:
+        pass
 
-    # Load a pretrained YOLO model (recommended for training)
-    model = YOLO("yolo11l.pt")
+    def annotate_frame(
+        self, frame: np.ndarray, detections: sp.Detections
+    ) -> np.ndarray:
+        pass
 
-    area1 = [(0, 600), (0, 1080), (850, 1080), (850, 600)]  # left side
-    area2 = [(1920, 600), (1920, 1080), (920, 1080), (920, 600)]  # right side
-
-    # Loop through the video frames
-    while cap.isOpened():
-        # Read a frame from the video
-        success, frame = cap.read()
-
-        if success:
-            start_time = time.time()
-
-            for area in [area1, area2]:
-                cv2.polylines(
-                    frame, [np.array(area, np.int32)], True, (0, 0, 255), 5
-                )
-
-            # Run YOLO11 tracking on the frame, persisting tracks between frames
-            results = model.track(
-                frame, persist=True, conf=0.25, iou=0.7, device=device
-            )
-
-            # Visualize the results on the frame
-            annotated_frame = results[0].plot()
-
-            # Calculate the live FPS
-            end_time = time.time()
-            live_fps = 1 / (end_time - start_time)
-
-            # Overlay the live FPS on the frame
-            cv2.putText(
-                annotated_frame,
-                f"FPS: {round(live_fps)}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 0, 255),
-                2,
-                cv2.LINE_AA,
-            )
-
-            # Display the annotated frame
-            cv2.imshow("YOLO11 Tracking", annotated_frame)
-
-            # Break the loop if 'q' is pressed
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
-        else:
-            # Break the loop if the end of the video is reached
-            break
-
-    # Release the video capture object and close the display window
-    cap.release()
-    cv2.destroyAllWindows()
+    def process_frame(self, frame: np.ndarray) -> np.ndarray:
+        pass
 
 
 if __name__ == "__main__":
@@ -79,4 +42,54 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
 
-    run_track_object()
+    parser = argparse.ArgumentParser(
+        description="YOLO11 tracking on a video file"
+    )
+    parser.add_argument(
+        "--weights",
+        type=str,
+        required=True,
+        help="Path to the weights file",
+    )
+    parser.add_argument(
+        "--video",
+        type=str,
+        required=True,
+        help="Path to the video file",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        required=False,
+        help="Path to the output video file",
+    )
+    parser.add_argument(
+        "--conf",
+        type=float,
+        default=0.3,
+        help="Confidence threshold for detections",
+    )
+    parser.add_argument(
+        "--iou",
+        type=float,
+        default=0.7,
+        help="IoU threshold for detections",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=device,
+        help="Device to run inference on (cpu, cuda, mps)",
+    )
+    args = parser.parse_args()
+
+    processor = VideoProcessor(
+        args.weights,
+        args.video,
+        args.output,
+        args.conf,
+        args.iou,
+        args.device,
+    )
+
+    processor.process_video()

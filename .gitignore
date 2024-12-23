@@ -1,4 +1,4 @@
+.DS_Store
 venv/
 video/
-.DS_Store
-yolo*
+models/
