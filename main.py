@@ -1,4 +1,5 @@
 import argparse
+import time
 import cv2
 import numpy as np
 import supervision as sp
@@ -27,17 +28,98 @@ class VideoProcessor:
         self.box_annotator = sp.BoxAnnotator(color=COLOURS)
         self.label_annotator = sp.LabelAnnotator(color=COLOURS)
         self.tracker = sp.ByteTrack()
+        self.drawing = False
+        self.polygon_list = []
+        self.current_polygon = []
+        self.zone_flag = 0
+
+    def draw_polygon(self, event, x, y, flags, param):
+        if len(self.current_polygon) == 0:
+            self.zone_flag = 0
+        elif len(self.current_polygon) == 3:
+            self.zone_flag = 1
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.drawing = True
+            self.current_polygon.append((x, y))
+            if len(self.current_polygon) > 1:
+                cv2.line(
+                    param,
+                    self.current_polygon[-2],
+                    self.current_polygon[-1],
+                    (0, 255, 0),
+                    2,
+                )
+            if len(self.current_polygon) == 4:
+                self.polygon_list.append(self.current_polygon)
+                print("Polygon added:", self.current_polygon)
+                cv2.line(
+                    param,
+                    self.current_polygon[-1],
+                    self.current_polygon[0],
+                    (0, 255, 0),
+                    2,
+                )
+                self.current_polygon = []
+                self.drawing = False
+
+        if event == cv2.EVENT_RBUTTONDOWN:
+            self.drawing = False
+            self.polygon_list = np.array(self.polygon_list)
+            print(self.polygon_list)
 
     def process_video(self) -> None:
         frame_generator = sp.get_video_frames_generator(
             source_path=self.source_video
         )
 
+        cv2.namedWindow("Frame")
+
+        paused = True
+        current_frame = None
         for frame in frame_generator:
+            if paused:
+                if current_frame is None:
+                    current_frame = frame.copy()
+
+                while paused:
+                    cv2.setMouseCallback(
+                        "Frame", self.draw_polygon, current_frame
+                    )
+
+                    for polygon in self.polygon_list:
+                        for i in range(len(polygon) - 1):
+                            cv2.line(
+                                current_frame,
+                                polygon[i],
+                                polygon[i + 1],
+                                (0, 255, 0),
+                                2,
+                            )
+                        cv2.line(
+                            current_frame,
+                            polygon[-1],
+                            polygon[0],
+                            (0, 255, 0),
+                            2,
+                        )
+
+                    processed_frame = self.process_frame(frame=current_frame)
+                    cv2.imshow("Frame", processed_frame)
+
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("p"):  # Press 'p' to start/pause
+                        paused = False
+                        break
+
             processed_frame = self.process_frame(frame=frame)
             cv2.imshow("Frame", processed_frame)
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("p"):  # Press 'p' to start/pause
+                paused = not paused
+                current_frame = frame.copy()
+            elif key == ord("q"):  # Press 'q' to quit
                 break
 
         cv2.destroyAllWindows()
