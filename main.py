@@ -1,5 +1,5 @@
 import argparse
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import cv2
 import numpy as np
 import supervision as sp
@@ -34,6 +34,23 @@ def instantiate_polygon_zones(
     ]
 
 
+class DetectionsManager:
+    def __init__(self) -> None:
+        self.tracker_id_to_zone_id: Dict[int, int] = {}
+
+    def update(
+        self, detections: sp.Detections, detections_zone_in: List[sp.Detections]
+    ) -> sp.Detections:
+        for zone_in_id, detections_in in enumerate(detections_zone_in):
+            for tracker_id in detections_in.tracker_id:
+                self.tracker_id_to_zone_id.setdefault(tracker_id, zone_in_id)
+
+        detections.class_id = np.vectorize(
+            lambda x: self.tracker_id_to_zone_id.get(x, -1)
+        )(detections.tracker_id)
+        return detections[detections.class_id != -1]
+
+
 class VideoProcessor:
     def __init__(
         self,
@@ -63,6 +80,7 @@ class VideoProcessor:
             polygons=ZONES_OUT,
             triggering_anchors=sp.Position.CENTER,
         )
+        self.detections_manager = DetectionsManager()
 
     def process_video(self) -> None:
         frame_generator = sp.get_video_frames_generator(
@@ -127,6 +145,17 @@ class VideoProcessor:
         )[0]
         detections = sp.Detections.from_ultralytics(result)
         detections = self.tracker.update_with_detections(detections)
+
+        detections_zones_in = []
+
+        for zone_in in self.zones_in:
+            detections_zone_in = detections[zone_in.trigger(detections)]
+            detections_zones_in.append(detections_zone_in)
+
+        detections = self.detections_manager.update(
+            detections=detections, detections_zone_in=detections_zones_in
+        )
+
         return self.annotate_frame(frame, detections)
 
 
