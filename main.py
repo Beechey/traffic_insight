@@ -69,6 +69,9 @@ class VideoProcessor:
         self.model = YOLO(weights)
         self.box_annotator = sp.BoxAnnotator(color=COLOURS)
         self.label_annotator = sp.LabelAnnotator(color=COLOURS)
+        self.trace_annotator = sp.TraceAnnotator(
+            color=COLOURS, thickness=2, trace_length=100
+        )
         self.tracker = sp.ByteTrack()
         self.drawing = False
         self.video_info = sp.VideoInfo.from_video_path(video_path=video)
@@ -132,6 +135,9 @@ class VideoProcessor:
         )
         annotated_frame = self.label_annotator.annotate(
             scene=annotated_frame, detections=detections, labels=labels
+        )
+        annotated_frame = self.trace_annotator.annotate(
+            scene=annotated_frame, detections=detections
         )
         return annotated_frame
 
