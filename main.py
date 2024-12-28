@@ -1,5 +1,5 @@
 import argparse
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 import cv2
 import numpy as np
 import supervision as sp
@@ -37,13 +37,25 @@ def instantiate_polygon_zones(
 class DetectionsManager:
     def __init__(self) -> None:
         self.tracker_id_to_zone_id: Dict[int, int] = {}
+        self.recorded_paths: Dict[int, Dict[int, Set]] = {}
 
     def update(
-        self, detections: sp.Detections, detections_zone_in: List[sp.Detections]
+        self,
+        detections: sp.Detections,
+        detections_zone_in: List[sp.Detections],
+        detections_zone_out: List[sp.Detections],
     ) -> sp.Detections:
         for zone_in_id, detections_in in enumerate(detections_zone_in):
             for tracker_id in detections_in.tracker_id:
                 self.tracker_id_to_zone_id.setdefault(tracker_id, zone_in_id)
+
+        for zone_out_id, detections_out in enumerate(detections_zone_out):
+            for tracker_id in detections_out.tracker_id:
+                if tracker_id in self.tracker_id_to_zone_id:
+                    zone_in = self.tracker_id_to_zone_id[tracker_id]
+                    self.recorded_paths.setdefault(zone_out_id, {})
+                    self.recorded_paths[zone_out_id].setdefault(zone_in, set())
+                    self.recorded_paths[zone_out_id][zone_in].add(tracker_id)
 
         detections.class_id = np.vectorize(
             lambda x: self.tracker_id_to_zone_id.get(x, -1)
@@ -139,6 +151,26 @@ class VideoProcessor:
         annotated_frame = self.trace_annotator.annotate(
             scene=annotated_frame, detections=detections
         )
+
+        for zones_out_id, zone_out in enumerate(self.zones_out):
+            zone_centre = sp.get_polygon_center(zone_out.polygon)
+
+            if zones_out_id in self.detections_manager.recorded_paths:
+                for zone_in_id in self.detections_manager.recorded_paths:
+                    paths = self.detections_manager.recorded_paths[zones_out_id]
+
+                    for i, zone_in_id in enumerate(paths):
+                        count = len(paths[zone_in_id])
+                        text_anchor = sp.Point(
+                            x=zone_centre.x + 40 * i, y=zone_centre.y
+                        )
+                        annotated_frame = sp.draw_text(
+                            scene=annotated_frame,
+                            text=f"{count}",
+                            text_anchor=text_anchor,
+                            background_color=COLOURS.colors[zone_in_id],
+                        )
+
         return annotated_frame
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
@@ -153,13 +185,19 @@ class VideoProcessor:
         detections = self.tracker.update_with_detections(detections)
 
         detections_zones_in = []
+        detections_zones_out = []
 
-        for zone_in in self.zones_in:
+        for zone_in, zone_out in zip(self.zones_in, self.zones_out):
             detections_zone_in = detections[zone_in.trigger(detections)]
             detections_zones_in.append(detections_zone_in)
 
+            detections_zone_out = detections[zone_out.trigger(detections)]
+            detections_zones_out.append(detections_zone_out)
+
         detections = self.detections_manager.update(
-            detections=detections, detections_zone_in=detections_zones_in
+            detections=detections,
+            detections_zone_in=detections_zones_in,
+            detections_zone_out=detections_zones_out,
         )
 
         return self.annotate_frame(frame, detections)
