@@ -68,7 +68,7 @@ class VideoProcessor:
         self,
         weights: str,
         video: str,
-        output: str = None,
+        output: str,
         conf: float = 0.3,
         iou: float = 0.7,
         device: str = "cpu",
@@ -102,6 +102,13 @@ class VideoProcessor:
             source_path=self.source_video
         )
 
+        result = cv2.VideoWriter(
+            "output.avi",
+            cv2.VideoWriter_fourcc(*"MJPG"),
+            10,
+            self.video_info.resolution_wh,
+        )
+
         paused = True
         for frame in frame_generator:
             if paused:
@@ -113,12 +120,15 @@ class VideoProcessor:
             processed_frame = self.process_frame(frame=frame)
             cv2.imshow("Frame", processed_frame)
 
+            result.write(processed_frame)
+
             key = cv2.waitKey(1) & 0xFF
             if key == ord("p"):  # Press 'p' to start/pause
                 paused = not paused
             elif key == ord("q"):  # Press 'q' to quit
                 break
 
+        result.release()
         cv2.destroyAllWindows()
 
     def annotate_frame(
