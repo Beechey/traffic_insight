@@ -246,13 +246,13 @@ if __name__ == "__main__":
         "--conf",
         type=float,
         default=0.3,
-        help="Confidence threshold for detections",
+        help="Set the confidence threshold for detections",
     )
     parser.add_argument(
         "--iou",
         type=float,
         default=0.7,
-        help="IoU threshold for detections",
+        help="Set the IoU threshold for detections",
     )
     parser.add_argument(
         "--device",
